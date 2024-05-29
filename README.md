@@ -7,10 +7,19 @@
 gleam add storch
 ```
 ```gleam
-import storch
+import storch.{Migration}
+import sqlight
 
 pub fn main() {
-  // TODO: An example of the project in use
+  let migrations = [
+    Migration(
+      0001, 
+      "create table if not exists users (id integer, username text, password_hash text);"
+    )
+  ]
+
+  use connection <- sqlight.with_connection(":memory:")
+  storch.migrate(migrations, on: connection)
 }
 ```
 

@@ -1,3 +1,5 @@
+//// Storch is a module to migrate sqlight databases
+
 import gleam/bool
 import gleam/dynamic
 import gleam/io
@@ -5,10 +7,14 @@ import gleam/list
 import gleam/result
 import sqlight.{type Connection}
 
+/// Migrations with an id and a sql script
+/// 
 pub type Migration {
   Migration(id: Int, up: String)
 }
 
+/// Pass in a list of migrations and a sqlight connection
+/// 
 pub fn migrate(
   migrations: List(Migration),
   on connection: Connection,
