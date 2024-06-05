@@ -1,4 +1,5 @@
 *.beam
 *.ez
 /build
+/priv/migrations
 erl_crash.dump
