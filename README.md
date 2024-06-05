@@ -7,17 +7,14 @@
 gleam add storch
 ```
 ```gleam
-import storch.{Migration}
+import storch
+import gleam/result
+import gleam/erlang
 import sqlight
 
 pub fn main() {
-  let migrations = [
-    Migration(
-      0001, 
-      "create table if not exists users (id integer, username text, password_hash text);"
-    )
-  ]
-
+  let assert Ok(priv_dir) = erlang.priv_directory("my_module_name")
+  use migrations <- result.try(storch.get_migrations(priv_dir <> "/migrations"))
   use connection <- sqlight.with_connection(":memory:")
   storch.migrate(migrations, on: connection)
 }
