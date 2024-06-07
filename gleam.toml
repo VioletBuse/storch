@@ -1,12 +1,12 @@
 name = "storch"
-version = "1.1.0"
+version = "1.1.1"
 
 # Fill out these fields if you intend to generate HTML documentation or publish
 # your project to the Hex package manager.
 #
 description = "A migration runner for gleam & sqlight"
 licences = ["Apache-2.0"]
-repository = { type = "github", user = "JulianBuse", repo = "storch" }
+repository = { type = "github", user = "VioletBuse", repo = "storch" }
 # links = [{ title = "Website", href = "https://gleam.run" }]
 #
 # For a full reference of all the available options, you can have a look at
