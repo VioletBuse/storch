@@ -12,6 +12,7 @@ import gleam/option.{None, Some}
 import gleam/regex
 import gleam/result
 import gleam/string
+import gloml
 import justin
 import simplifile
 import sqlight.{type Connection}
@@ -31,7 +32,26 @@ const helptext = "
         migrations directory.
 "
 
+fn get_migrations_dir() -> String {
+  simplifile.read("gleam.toml")
+  |> result.nil_error
+  |> result.map(gloml.decode(_, dynamic.field("migrations_dir", dynamic.string)))
+  |> result.map(result.map_error(_, fn(_) { Nil }))
+  |> result.flatten
+  |> result.unwrap("./migrations")
+}
+
+fn get_schema_file() -> String {
+  simplifile.read("gleam.toml")
+  |> result.nil_error
+  |> result.map(gloml.decode(_, dynamic.field("schemafile", dynamic.string)))
+  |> result.map(result.map_error(_, fn(_) { Nil }))
+  |> result.flatten
+  |> result.unwrap("./schema.sql")
+}
+
 /// Runs the storch cli to generate new migrations and dump the schema
+/// you probably don't wanna run this yourself...
 /// run `gleam run -m storch` to find out more
 pub fn main() {
   let help_flag =
@@ -52,7 +72,7 @@ pub fn main() {
 const new_cmd_helptext = "
   gleam run -m storch -- new <migration name>
     options:
-      --dir, --migrations-dir, -d Directory to create the migration in, default: ./
+      --dir, --migrations-dir, -d Migrations directory location, default: ./migrations
       --help, -h                  Show this help message
 "
 
@@ -66,7 +86,7 @@ fn handle_new_cmd(args: List(String), help help_flag: Bool) {
         _ -> False
       }
     })
-    |> result.unwrap(#("default", "./"))
+    |> result.unwrap(#("default", get_migrations_dir()))
 
   case help_flag, args {
     True, _ -> io.println(new_cmd_helptext)
@@ -99,7 +119,7 @@ fn handle_schema_dump(args: List(String), help help_flag: Bool) {
         _ -> False
       }
     })
-    |> result.unwrap(#("", "./migrations"))
+    |> result.unwrap(#("", get_migrations_dir()))
 
   let #(_, outfile) =
     list.find(list.window_by_2(args), fn(window) {
@@ -108,7 +128,7 @@ fn handle_schema_dump(args: List(String), help help_flag: Bool) {
         _ -> False
       }
     })
-    |> result.unwrap(#("", "./schema.sql"))
+    |> result.unwrap(#("", get_schema_file()))
 
   case help_flag {
     True -> io.println(schema_dump_helptext)

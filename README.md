@@ -6,6 +6,19 @@
 ```sh
 gleam add storch
 ```
+
+Add the following fields to your gleam.toml file:
+
+```toml
+# this can of course be anything you like
+migrations_dir = "./priv/migrations"
+schemafile = "./schema.sql"
+```
+
+Then run the command `gleam run -m storch -- new "Initial schema migration"` and make any changes you like.
+
+Running the command `gleam run -m storch -- schema` will create the file ./schema.sql, (or whatever you set in your gleam.toml) with the schema of your database after all migrations have been applied.
+
 ```gleam
 import storch
 import gleam/result
