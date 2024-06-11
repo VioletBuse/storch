@@ -1,19 +1,171 @@
 //// Storch is a module to migrate sqlight databases
 
+import argv
 import filepath
 import gleam/bool
 import gleam/dynamic
+import gleam/erlang
 import gleam/int
 import gleam/io
 import gleam/list
+import gleam/option.{None, Some}
 import gleam/regex
 import gleam/result
 import gleam/string
+import justin
 import simplifile
 import sqlight.{type Connection}
 
+const helptext = "
+  gleam run -m storch -- <command> [options]
+
+  commands:
+    new <migration name>
+        Generate a new migration script. A timestamp will
+        be prepended as the migration id, to ensure ordering
+        of migration scripts.
+
+    schema <path to migrations folder>
+        Dump the schema of the sqlite database into a schema.sql
+        file. Pass in the path (absolute or relative) to the
+        migrations directory.
+"
+
+/// Runs the storch cli to generate new migrations and dump the schema
+/// run `gleam run -m storch` to find out more
+pub fn main() {
+  let help_flag =
+    list.any(argv.load().arguments, fn(flag) {
+      case flag {
+        "--help" | "-h" | "help" -> True
+        _ -> False
+      }
+    })
+
+  case argv.load().arguments {
+    ["new", ..rest] -> handle_new_cmd(rest, help: help_flag)
+    ["schema", ..rest] -> handle_schema_dump(rest, help: help_flag)
+    _ -> io.println(helptext)
+  }
+}
+
+const new_cmd_helptext = "
+  gleam run -m storch -- new <migration name>
+    options:
+      --dir, --migrations-dir, -d Directory to create the migration in, default: ./
+      --help, -h                  Show this help message
+"
+
+fn handle_new_cmd(args: List(String), help help_flag: Bool) {
+  let timestamp = erlang.system_time(erlang.Second)
+
+  let #(_, dir) =
+    list.find(list.window_by_2(args), fn(tuple) {
+      case tuple {
+        #("--dir", _) | #("--migrations-dir", _) | #("-d", _) -> True
+        _ -> False
+      }
+    })
+    |> result.unwrap(#("default", "./"))
+
+  case help_flag, args {
+    True, _ -> io.println(new_cmd_helptext)
+    _, [] -> io.println("Please provide a migration name")
+    _, [name, ..] -> {
+      let filename =
+        int.to_string(timestamp) <> "_" <> justin.snake_case(name) <> ".sql"
+      let path = filepath.join(dir, filename)
+
+      let _ = simplifile.create_file(path)
+      let _ = simplifile.write(path, "-- " <> name)
+
+      Nil
+    }
+  }
+}
+
+const schema_dump_helptext = "
+  gleam run -m storch -- schema
+    options:
+      --migrations-dir, -d    Migrations directory location, default: ./migrations
+      --file-name, -f         Name of the resulting file, default: ./schema.sql
+"
+
+fn handle_schema_dump(args: List(String), help help_flag: Bool) {
+  let #(_, migrations_dir) =
+    list.find(list.window_by_2(args), fn(window) {
+      case window {
+        #("--migrations-dir", _) | #("-d", _) -> True
+        _ -> False
+      }
+    })
+    |> result.unwrap(#("", "./migrations"))
+
+  let #(_, outfile) =
+    list.find(list.window_by_2(args), fn(window) {
+      case window {
+        #("--file-name", _) | #("-f", _) -> True
+        _ -> False
+      }
+    })
+    |> result.unwrap(#("", "./schema.sql"))
+
+  case help_flag {
+    True -> io.println(schema_dump_helptext)
+    False -> {
+      use connection <- sqlight.with_connection(":memory:")
+
+      let schema_result = {
+        use migrations <- result.try(get_migrations(migrations_dir))
+        use _ <- result.try(migrate(migrations, connection))
+        use sql_dumps <- result.try(
+          sqlight.query(
+            "SELECT * FROM sqlite_schema",
+            connection,
+            [],
+            dynamic.tuple5(
+              dynamic.string,
+              dynamic.string,
+              dynamic.string,
+              dynamic.int,
+              dynamic.optional(dynamic.string),
+            ),
+          )
+          |> result.map_error(TransactionError),
+        )
+
+        Ok(
+          list.filter(sql_dumps, fn(row) {
+            case row.4 {
+              Some(_) -> True
+              None -> False
+            }
+          })
+          |> list.map(fn(row) { option.unwrap(row.4, "") }),
+        )
+      }
+
+      case schema_result {
+        Error(err) -> {
+          io.debug(err)
+
+          Nil
+        }
+        Ok(sql_list) -> {
+          let _ =
+            list.map(sql_list, fn(str) { str <> ";\n\n" })
+            |> string.concat
+            |> simplifile.write(outfile, _)
+
+          Nil
+        }
+      }
+    }
+  }
+}
+
 /// Migrations with an id and a sql script
-/// 
+///
 pub type Migration {
   Migration(id: Int, up: String)
 }
@@ -39,7 +191,7 @@ fn migration_error(error: MigrationError) -> fn(a) -> MigrationError {
 }
 
 /// Pass in a list of migrations and a sqlight connection
-/// 
+///
 pub fn migrate(
   migrations: List(Migration),
   on connection: Connection,
@@ -122,7 +274,7 @@ pub fn migrate(
 /// Get a list of migrations from a folder in the filesystem
 /// migration files *must* end in .sql and start with an integer id followed by an underscore
 /// example: 0000001_init.sql
-/// 
+///
 /// you could store these in the priv directory if you like, that's probably the best way
 pub fn get_migrations(
   in directory: String,
