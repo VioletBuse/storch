@@ -3,6 +3,8 @@
 [![Package Version](https://img.shields.io/hexpm/v/storch)](https://hex.pm/packages/storch)
 [![Hex Docs](https://img.shields.io/badge/hex-docs-ffaff3)](https://hexdocs.pm/storch/)
 
+**This package is superceded by the [feather](https://hex.pm/packages/feather) package, which offers a superset of storch's functionality**
+
 ```sh
 gleam add storch
 ```
